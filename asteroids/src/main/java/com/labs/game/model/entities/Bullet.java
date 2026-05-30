@@ -1,12 +1,24 @@
 package com.labs.game.model.entities;
 
+import com.labs.game.network.Data.BulletData;
+import com.labs.game.network.Data.EntityData;
+
 import java.awt.*;
 
 public class Bullet extends GameEntity{
-    private Polygon shape;
+
+    public Bullet(int x, int y){
+        int bulletSpeed = 10;
+        this.radius = 2;
+
+        shape = generateShape();
+
+        this.x = x;
+        this.y = y;
+    }
 
     public Bullet(Ship ship){
-        int bulletSpeed = 8;
+        int bulletSpeed = 10;
         this.radius = 2;
         this.xSpeed = ship.xSpeed;
         this.ySpeed = ship.ySpeed;
@@ -16,12 +28,18 @@ public class Bullet extends GameEntity{
         this.x = ship.getX();
         this.y = ship.getY();
 
-        double radians = ship.getAngleRadians();
+        double radians = ship.getAngle();
         double rotSin = Math.sin(radians);
         double rotCos = Math.cos(radians);
 
         this.xSpeed = rotCos*bulletSpeed;
         this.ySpeed = rotSin*bulletSpeed;
+    }
+
+    @Override
+    public EntityData toEntityData() {
+        BulletData bData = new BulletData("Bullet", id, (int)x, (int)y, getAngle(), radius, getGhostTime());
+        return bData;
     }
 
     @Override
@@ -63,5 +81,25 @@ public class Bullet extends GameEntity{
 
     public double getVectorSpeed(){
         return Math.sqrt(this.xSpeed*this.xSpeed + this.ySpeed*this.ySpeed);
+    }
+
+    @Override
+    public boolean isAffectableOnEntity(GameEntity other){
+        if(other.isGhost()){
+            return false;
+        }
+
+        if(this == other){
+            return false;
+        }
+        return this.isColliding(other);
+    }
+
+    @Override
+    public void entityAffect(GameEntity entity){
+        if(this.isAffectableOnEntity(entity)){
+            entity.damaged();
+            this.damaged();
+        }
     }
 }

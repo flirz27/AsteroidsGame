@@ -1,11 +1,8 @@
 package com.labs.game.view;
 
-import com.labs.game.event.Event;
-import com.labs.game.event.RecordUpdateEvent;
 import com.labs.game.model.GameModel;
 import com.labs.game.model.ModelStatus;
 import com.labs.game.model.entities.*;
-import com.labs.game.service.Observer;
 
 import javax.swing.*;
 import java.awt.*;
@@ -24,6 +21,7 @@ public class GamePanel extends JPanel implements ActionListener, ComponentListen
     private final Font scoreFont = new Font(Font.MONOSPACED, Font.BOLD, 18);
     private final Font hPBarFont = new Font(Font.MONOSPACED, Font.BOLD, 18);
     private final Color bulletColor = Color.BLUE;
+    private final Color blackHolecolor = new Color(100, 50, 150, 150);
     private final Color overlayColor = new Color(0, 0, 0, 100);
     private final Polygon flameShape = new Polygon();
 
@@ -36,7 +34,7 @@ public class GamePanel extends JPanel implements ActionListener, ComponentListen
         this.addComponentListener(this);
         setBackground(Color.BLACK);
 
-        int shipSize = (int) model.getShip().getRadius();
+        int shipSize = 15;
         flameShape.addPoint(-shipSize - 5, 0);
         flameShape.addPoint(-shipSize + 2, shipSize/2);
         flameShape.addPoint(-shipSize + 2, -shipSize/2);
@@ -58,11 +56,13 @@ public class GamePanel extends JPanel implements ActionListener, ComponentListen
     }
 
     private void render(Graphics2D g2d){
-        drawShip(g2d, model.getShip());
-        drawAsteroids(g2d, model.getAsteroids());
+
+        for (Ship ship : model.getShips()) {
+            drawShip(g2d, ship);
+        }
+        drawEntities(g2d, model.getEntities());
         drawBullet(g2d, model.getBullets());
         drawRecordBar(g2d);
-        drawHPBar(g2d);
 
 
         if(this.model.getStatus() == ModelStatus.GAMEOVER){
@@ -70,6 +70,9 @@ public class GamePanel extends JPanel implements ActionListener, ComponentListen
             g2d.fillRect(0, 0, (int)model.getWidth(), (int)model.getHeight());
 
         }
+
+        g2d.setTransform(new AffineTransform());
+        drawHpBars(g2d);
     }
 
     @Override
@@ -78,17 +81,22 @@ public class GamePanel extends JPanel implements ActionListener, ComponentListen
     }
 
     private void drawShip(Graphics2D g2d, Ship ship){
+
+        if(ship.isDestroyed()){
+            return;
+        }
         AffineTransform old = g2d.getTransform();
 
         g2d.translate((int)ship.getX(), (int)ship.getY());
-        g2d.rotate(ship.getAngleRadians());
+        g2d.rotate(ship.getAngle());
 
         if(ship.isThrusting()){
             drawThruster(g2d, ship);
         }
 
-        if(ship.isGhost() && this.model.getStatus() == ModelStatus.PLAYING){
-            boolean isVisible =  System.currentTimeMillis()%2 == 0;
+
+        if(ship.isGhost()){
+            boolean isVisible =  (System.currentTimeMillis() / 100) % 2 == 0;
             if(!isVisible){
                 g2d.setTransform(old);
                 return;
@@ -103,11 +111,70 @@ public class GamePanel extends JPanel implements ActionListener, ComponentListen
 
         g2d.drawPolygon(ship.getShape());
 
+        //if(ship == this.)
+
+        g2d.setTransform(old);
+    }
+
+
+    private void drawEntities(Graphics2D g2d, List<GameEntity> entities){
+        for(GameEntity e: entities){
+            if(e.getClass() == Blackhole.class){
+                drawBlackhole(g2d, (Blackhole) e);
+            }
+        }
+
+        for(GameEntity e: entities){
+            if(e.getClass() == Asteroid.class){
+                drawAsteroid(g2d, (Asteroid) e);
+            }
+        }
+    }
+
+    private void drawBlackhole(Graphics2D g2d, Blackhole b){
+        AffineTransform old = g2d.getTransform();
+        double time = System.currentTimeMillis() / 300.0;
+        g2d.translate(b.getX(), b.getY());
+        g2d.scale(b.getPulseScale(), b.getPulseScale());
+
+        if(b.isGhost() && this.model.getStatus() == ModelStatus.PLAYING){
+            boolean isVisible =  (System.currentTimeMillis() / 100) % 2 == 0;
+            if(!isVisible){
+                g2d.setTransform(old);
+                return;
+            }
+            else{
+                g2d.setColor(Color.GRAY);
+            }
+        }
+        else{
+            g2d.setColor(this.blackHolecolor);
+        }
+
+        g2d.fillPolygon(b.getShape());
+
+
+        g2d.setColor(Color.BLACK);
+        int coreRadius = (int) (b.getRadius() * 0.7);
+        g2d.fillOval(-coreRadius, -coreRadius, coreRadius * 2, coreRadius * 2);
+
+        g2d.setColor(Color.WHITE);
+        g2d.drawOval(-coreRadius, -coreRadius, coreRadius * 2, coreRadius * 2);
+
+        float coreAlpha = 0.5f + (float)(Math.sin(time * 3) * 0.5f);
+        g2d.setColor(new Color(0, 0, 0, (int)(coreAlpha * 255)));
+        g2d.fillOval(-coreRadius, -coreRadius, coreRadius * 2, coreRadius * 2);
+
+        g2d.rotate(Math.sin(time) * Math.PI / 8);
+        g2d.setColor(new Color(200, 100, 255, 100));
+        g2d.drawOval(-coreRadius-3, -coreRadius-3, coreRadius*2+6, coreRadius*2+6);
+        g2d.drawOval(-coreRadius-6, -coreRadius-6, coreRadius*2+12, coreRadius*2+12);
+
         g2d.setTransform(old);
     }
 
     private void drawThruster(Graphics2D g2d, Ship ship){
-        boolean flicker = System.currentTimeMillis()%2==0;
+        boolean flicker = (System.currentTimeMillis() / 100) % 2 == 0;
         if(flicker){
             g2d.setColor(Color.GRAY);
         }
@@ -126,33 +193,25 @@ public class GamePanel extends JPanel implements ActionListener, ComponentListen
         g2d.drawPolygon(flameShape);
     }
 
-    private void drawAsteroids(Graphics2D g2d, List<Asteroid> asteroids){
-        for(Asteroid asteroid: asteroids){
-            AffineTransform old = g2d.getTransform();
+    private void drawAsteroid(Graphics2D g2d, Asteroid asteroid){
+        AffineTransform old = g2d.getTransform();
 
-            Polygon shape = asteroid.getShape();
+        Polygon shape = asteroid.getShape();
 
-            int xPos = (int)asteroid.getX();
-            int yPos = (int)asteroid.getY();
-            g2d.translate(xPos, yPos);
+        int xPos = (int)asteroid.getX();
+        int yPos = (int)asteroid.getY();
+        g2d.translate(xPos, yPos);
 
-            if(asteroid.isGhost()){
-                boolean isVisible =  System.currentTimeMillis()%2 == 0;
-                if(!isVisible){
-                    g2d.setTransform(old);
-                    continue;
-                }
-                else{
-                    g2d.setColor(Color.GRAY);
-                }
-            }
-            else{
-                g2d.setColor(Color.WHITE);
-            }
-            g2d.drawPolygon(shape);
-
-            g2d.setTransform(old);
+        if(asteroid.isGhost()){
+            float alpha = (float) (Math.sin(System.currentTimeMillis() / 100.0) + 1) / 2;
+            g2d.setColor(new Color(1f, 1f, 1f, alpha));
+        } else {
+            g2d.setColor(Color.WHITE);
         }
+
+        g2d.drawPolygon(shape);
+
+        g2d.setTransform(old);
     }
 
     private void drawBullet(Graphics2D g2d, List<Bullet> bullets){
@@ -186,12 +245,27 @@ public class GamePanel extends JPanel implements ActionListener, ComponentListen
         g2d.drawString(maxScoreText, (int) (this.model.getWidth() - maxScoreWidth-10), 30);
     }
 
-    private void drawHPBar(Graphics2D g2d) {
+    private void drawHpBars(Graphics2D g2d) {
+        double scaleX = (double) this.width / model.getWidth();
+        double scaleY = (double) this.height / model.getHeight();
+
         g2d.setColor(Color.WHITE);
-        g2d.setFont(this.hPBarFont);
-        String curHPText = "HP: " + this.model.getShip().getHealthPoint();
-        FontMetrics fm = g2d.getFontMetrics();
-        g2d.drawString(curHPText, 200, 30);
+        g2d.setFont(new Font(Font.MONOSPACED, Font.BOLD, 14));
+
+        for (Ship ship : model.getShips()) {
+
+            int screenX = (int)(ship.getX() * scaleX);
+            int screenY = (int)(ship.getY() * scaleY);
+
+            String hpText = "❤️ " + ship.getHealthPoint();
+
+            int textX = screenX - 20;
+            int textY = screenY - 25;
+
+            if (textX > 0 && textX < width && textY > 0 && textY < height) {
+                g2d.drawString(hpText, textX, textY);
+            }
+        }
     }
 
     @Override

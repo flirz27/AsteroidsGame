@@ -1,21 +1,50 @@
 package com.labs.game.model.entities;
 
+import com.labs.game.network.Data.EntityData;
+
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.util.Random;
 
 public abstract class GameEntity {
-    double x;
-    double y;
-    double xSpeed;
-    double ySpeed;
-    double rotationAngle;
-    double radius;
-    boolean destroyed;
-    boolean ghostForm;
-    int ghostFormTimer;
+    protected double x;
+    protected double y;
+    protected double xSpeed;
+    protected double ySpeed;
+    protected double rotationAngle;
+    protected double radius;
+    protected boolean destroyed;
+    protected boolean ghostForm;
+    protected int ghostFormTimer;
     protected Polygon shape;
     protected int price = 0;
+    protected int maxSpeed = 2;
+    protected int id;
+    protected long seed;
+    protected Random random;
+
+    public abstract EntityData toEntityData();
+
+    public long getSeed(){
+        return this.seed;
+    }
+    public int getId() {
+        return id;
+    }
+    public void setId(int id) {
+        this.id = id;
+    }
+    public void setRadius(double newRadius){
+        this.radius = newRadius;
+    }
+    public void setGhostForm(int ghostFormTime) {
+        this.ghostFormTimer = ghostFormTime;
+        this.ghostForm = ghostFormTimer > 0;
+    }
+    public int getGhostTime(){
+        return this.ghostFormTimer;
+    }
 
     public void update(int width, int height){
         if(destroyed){
@@ -50,7 +79,20 @@ public abstract class GameEntity {
     public boolean isDestroyed(){
         return this.destroyed;
     }
-    abstract void damaged();
+    public void damaged(){
+        this.destroyed = true;
+    };
+
+    public Polygon getShape(){
+        return this.shape;
+    }
+
+    public double getDistance(GameEntity other){
+        double dx = this.x - other.x;
+        double dy = this.y - other.y;
+        double distanceSq = dx * dx + dy * dy;
+        return Math.sqrt(distanceSq);
+    }
 
     public boolean isColliding(GameEntity other) {
         double dx = this.x - other.x;
@@ -73,26 +115,34 @@ public abstract class GameEntity {
         return !(area1.isEmpty());
     }
 
-    public double getAngleRadians(){
-        return Math.toRadians(this.rotationAngle);
+    public double getAngle(){
+        return this.rotationAngle;
     }
+    public void setRotationAngle(double angle){
+        this.rotationAngle = angle;
+    }
+
 
     private Shape getTransformedShape(){
         AffineTransform at = new AffineTransform();
         at.translate(this.x, this.y);
-        at.rotate(this.getAngleRadians());
+        at.rotate(this.getAngle());
         return at.createTransformedShape(getShape());
     }
 
-    public Polygon getShape(){
-        return this.shape;
-    }
-
     public void setGhost(int time){
-        if(time > 0){
+        if (time > 0) {
             this.ghostForm = true;
             this.ghostFormTimer = time;
+        } else {
+            this.ghostForm = false;
+            this.ghostFormTimer = 0;
         }
+    }
+
+    public void setCoord(double x, double y){
+        this.x = x;
+        this.y = y;
     }
 
     public boolean isGhost(){
@@ -105,6 +155,11 @@ public abstract class GameEntity {
         }else{
             this.ghostForm = false;
         }
+    }
+
+    public void setSpeed(double vx, double vy){
+        this.xSpeed = vx;
+        this.ySpeed = vy;
     }
 
     protected double getMaxRadius(){
@@ -135,4 +190,59 @@ public abstract class GameEntity {
     public double getRadius(){
         return this.radius;
     }
+
+    public void push(GameEntity other) {
+        double dx = this.x - other.x;
+        double dy = this.y - other.y;
+
+        double distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance == 0) {
+            dx = Math.random() - 0.5;
+            dy = Math.random() - 0.5;
+            distance = Math.sqrt(dx * dx + dy * dy);
+        }
+
+        double nx = dx / distance;
+        double ny = dy / distance;
+
+        double bounceIntensity = 0.5;
+
+        this.giveAcceleration(nx * bounceIntensity, ny * bounceIntensity);
+        other.giveAcceleration(-nx * bounceIntensity, -ny * bounceIntensity);
+    }
+
+    public void setDestroyed(){
+        this.destroyed = true;
+    }
+
+    public void giveAcceleration(double xAcc, double yAcc){
+        this.xSpeed += xAcc;
+        this.ySpeed += yAcc;
+
+        double currentSpeed = Math.sqrt(xSpeed * xSpeed + ySpeed * ySpeed);
+
+        if (currentSpeed > maxSpeed) {
+            double factor = maxSpeed / currentSpeed;
+            this.xSpeed *= factor;
+            this.ySpeed *= factor;
+        }
+    }
+
+    public boolean isAffectableOnEntity(GameEntity other){
+        return false;
+    }
+
+    public boolean isAffectableOnShip(Ship ship){
+        return false;
+    }
+
+    public void shipAffect(Ship ship){
+
+    }
+
+    public void entityAffect(GameEntity entity){
+
+    }
+
 }

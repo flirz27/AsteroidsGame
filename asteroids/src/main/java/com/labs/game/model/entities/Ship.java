@@ -1,15 +1,21 @@
 package com.labs.game.model.entities;
 
 
+import com.labs.game.network.Data.EntityData;
+import com.labs.game.network.Data.ShipData;
+
 import java.awt.*;
 
 public class Ship extends GameEntity {
-    private double thrustPower = 0.3;
-    private boolean openFire;
+    private double thrustPower = 0.07;
+    private boolean firing;
     private int shootCooldown = 30;
     private int cooldownTimer = 0;
     private boolean thrusting;
     private int healthPoint;
+
+    boolean isRotatingLeft;
+    boolean isRotatingRight;
 
     public Ship(int x, int y){
         this.x = x;
@@ -24,7 +30,24 @@ public class Ship extends GameEntity {
     }
 
     @Override
+    public EntityData toEntityData() {
+        ShipData sData = new ShipData("Ship", id, (int)x, (int)y, getAngle(), radius, getGhostTime(), isThrusting(), getHealthPoint());
+        return sData;
+    }
+
+    @Override
     public void update(int width, int height){
+
+        if (this.thrusting) {
+            thrust();
+        }
+
+        if (isRotatingLeft) {
+            this.rotateLeft();
+        }
+        if (isRotatingRight) {
+            this.rotateRight();
+        }
 
         if(destroyed){
             return;
@@ -54,9 +77,9 @@ public class Ship extends GameEntity {
     }
 
     public void thrust(){
-        int speedLimit = 4;
+        double speedLimit = 2;
 
-        double radians = Math.toRadians(this.rotationAngle);
+        double radians = (this.rotationAngle);
 
         double rotSin = Math.sin(radians);
         double rotCos = Math.cos(radians);
@@ -73,21 +96,16 @@ public class Ship extends GameEntity {
     }
 
     public void rotateLeft(){
-        rotationAngle = (rotationAngle-2 + 360)%360;
+        rotationAngle = Math.toRadians((Math.toDegrees(rotationAngle)-2 + 360)%360);
     }
 
     public void rotateRight(){
-        rotationAngle = (rotationAngle+2)%360;
+        rotationAngle = Math.toRadians((Math.toDegrees(rotationAngle)+2)%360);
     }
 
     public void fire(){
-        openFire = true;
+        firing = true;
     }
-
-    public double getAngle(){
-        return rotationAngle;
-    }
-
 
     private Polygon generateShape(){
         int[] xPoints = {15, -10, -10};
@@ -108,8 +126,8 @@ public class Ship extends GameEntity {
     }
 
     public boolean isFiring(){
-        if(this.openFire){
-            this.openFire = false;
+        if(this.firing){
+            this.firing = false;
             return true;
         }
         return false;
@@ -118,23 +136,22 @@ public class Ship extends GameEntity {
     public boolean canShoot(){
         return cooldownTimer == 0;
     }
+
     public void resetCooldown(){
         cooldownTimer = shootCooldown;
     }
+
     public boolean isThrusting(){
         return this.thrusting;
     }
+
     public void setThrusting(boolean v){
         this.thrusting = v;
     }
 
-    public void setCoord(double x, double y){
-        this.x = x;
-        this.y = y;
-    }
-
     public void setHealthPoint(int hp){
         this.healthPoint = hp;
+
     }
 
     public int getHealthPoint() {
@@ -153,4 +170,11 @@ public class Ship extends GameEntity {
         this.setGhost(20);
     }
 
+    public void setRotatingLeft(boolean t){
+        this.isRotatingLeft = t;
+    }
+
+    public void setRotatingRight(boolean t){
+        this.isRotatingRight = t;
+    }
 }

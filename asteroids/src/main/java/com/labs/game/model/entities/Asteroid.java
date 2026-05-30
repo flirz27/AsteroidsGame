@@ -1,46 +1,69 @@
 package com.labs.game.model.entities;
 
+import com.labs.game.model.Record;
+import com.labs.game.network.Data.AsteroidData;
+import com.labs.game.network.Data.EntityData;
+
+import java.util.Random;
+
 import java.awt.*;
+import java.util.List;
 
 public class Asteroid extends GameEntity{
     private int level;
     private double rotationSpeed;
-    private Polygon shape;
+    private List<GameEntity> entities;
+    private Record record;
+    private static int asteroidCount = 0;
 
-    public Asteroid(double x, double y, double radius){
-        this.destroyed = (radius < 6);
-        this.xSpeed = Math.random()+0.1;
-        this.ySpeed = Math.random()+0.1;
+    public Asteroid(double x, double y, double radius, List<GameEntity> entities, Record record) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+        this.entities = entities;
+        this.record = record;
+        this.random = new Random();
+    }
+
+    public Asteroid(double x, double y, double radius, List<GameEntity> entities, Record record, long seed){
+        this.seed = seed;
+        this.random = new Random(seed);
+        this.xSpeed = random.nextDouble()+0.1;
+        this.ySpeed = random.nextDouble()+0.1;
         this.x = x;
         this.y = y;
         this.radius = radius;
         this.setLevel();
-        this.shape = generateShape(radius, 8);
-        this.rotationSpeed = (Math.random() - 0.5) * 0.1;
+        this.shape = generateShape(radius, 8, random);
+        this.rotationSpeed = (random.nextDouble() - 0.5) * 0.1;
         this.setGhost(100 * (4 - level));
         this.price = 10*level;
+        this.entities = entities;
+        this.record =record;
+
     }
 
-    public void push(Asteroid other) {
-        this.xSpeed -= other.xSpeed * other.getRadius();
-        this.ySpeed -= other.ySpeed * other.getRadius();
+    public static int getAsteroidCount(){
+        return asteroidCount;
     }
 
-    private Polygon generateShape(double radius, int points){
+    private Polygon generateShape(double radius, int points, Random random){
         int[] xPoints = new int[points];
         int[] yPoints = new int[points];
 
         for(int i = 0; i < points; ++i){
             double angle = 2 * Math.PI * ((double)i/points);
-            double pointRadius = radius * (0.8 + Math.random()*0.4);
+            double pointRadius = radius * (0.8 + random.nextDouble()*0.4);
             xPoints[i] = (int) (pointRadius * Math.cos(angle));
             yPoints[i] = (int) (pointRadius * Math.sin(angle));
         }
         return new Polygon(xPoints, yPoints, points);
     }
 
-    public Polygon getShape(){
-        return this.shape;
+    @Override
+    public EntityData toEntityData() {
+        AsteroidData aData = new AsteroidData("Asteroid", id, (int)x, (int)y, getAngle(), radius, ghostFormTimer, seed);
+        return aData;
     }
 
     @Override
@@ -52,8 +75,8 @@ public class Asteroid extends GameEntity{
 
         this.updateGhostForm();
 
-        xSpeed += (Math.random() - 0.5) * 0.05;
-        ySpeed += (Math.random() - 0.5) * 0.05;
+        xSpeed += (random.nextDouble() - 0.5) * 0.05;
+        ySpeed += (random.nextDouble() - 0.5) * 0.05;
         if (currentSpeed > 0) {
             if (currentSpeed > upSpeedLimit) {
                 xSpeed = (xSpeed / currentSpeed) * upSpeedLimit;
@@ -85,14 +108,40 @@ public class Asteroid extends GameEntity{
         }
     }
 
+
     @Override
     public void damaged(){
         if(this.isGhost()){
             return;
         }
-        --level;
-        this.destroyed = true;
 
+        record.update(this.getPrice());
+
+
+        --asteroidCount;
+
+        if(radius > 15){
+            int fragments = (radius > 30) ? 3 : 2;
+            double newRadius = radius/2;
+
+            for(int i = 0; i < fragments; ++i){
+                double angle = random.nextDouble() * 2 * Math.PI;
+                double speed = 0.8 + random.nextDouble() * 1.2;
+                double vx = Math.cos(angle) * speed;
+                double vy = Math.sin(angle) * speed;
+
+                long newSeed = seed + i + 1;
+                Asteroid fragment = new Asteroid(x, y, newRadius, entities, record, newSeed);
+
+                fragment.setId(com.labs.game.controller.GameCore.idGenerator.getAndIncrement());
+                fragment.xSpeed = vx;
+                fragment.ySpeed = vy;
+
+                entities.add(fragment);
+            }
+        }
+
+        this.destroyed = true;
     }
 
     public int getLevel(){
@@ -114,4 +163,51 @@ public class Asteroid extends GameEntity{
             this.destroyed=true;
         }
     }
+
+    @Override
+    public boolean isAffectableOnShip(Ship ship){
+        return !ship.isGhost() && !this.isGhost() && this.isColliding(ship);
+    }
+
+    @Override
+    public boolean isAffectableOnEntity(GameEntity other){
+        if(this == other) {
+            return false;
+        }
+
+        Asteroid a = this;
+        return !other.isGhost() && !a.isGhost() && a.isColliding(other);
+    }
+
+    @Override
+    public void shipAffect(Ship ship){
+        if(this.isAffectableOnShip(ship)){
+            ship.damaged();
+        }
+    }
+
+    @Override
+    public void entityAffect(GameEntity entity){
+
+        if(this.isAffectableOnEntity(entity)){
+
+            Class entityClass = entity.getClass();
+
+            if(entityClass == Asteroid.class){
+                if(this.getRadius() > entity.getRadius()){
+                    this.push(entity);
+                }
+            }
+
+            else{
+                entity.damaged();
+            }
+
+        }
+    }
+
+    public static void setAsteroidCount(int count){
+        asteroidCount = 0;
+    }
+
 }
